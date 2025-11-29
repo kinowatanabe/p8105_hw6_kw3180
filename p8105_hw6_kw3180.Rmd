@@ -29,7 +29,8 @@ scale_fill_discrete = scale_fill_viridis_d
 
 # Problem 2
 
-Load the data
+### Load the data
+
 ```{r}
 library(modelr)
 library(p8105.datasets)
@@ -38,14 +39,26 @@ data("weather_df")
 weather_df <- weather_df |> 
   filter(name == "CentralPark_NY")
 ```
+What do the distribution of variables prcp and tmin look like?
 
 ```{r}
+weather_df |> 
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_point() 
 
+weather_df |> 
+  ggplot(aes(x = prcp, y = tmax)) + 
+  geom_point() 
+```
+
+### Let's do bootstrapping
+
+```{r}
 set.seed(1)
 
 bootstrap_results = 
   weather_df |> 
-  bootstrap(n = 10) |> 
+  bootstrap(n = 5000) |> 
   mutate(
     df = map(strap, as_tibble),
     fits = map(df, \(df) lm(tmax ~ tmin + prcp, data = df)),
@@ -75,17 +88,46 @@ bootstrap_results_merged <-
 bootstrap_results_merged
 ```
 
+### Plot the distribution after bootstrapping
+
 ```{r}
 # r² distribution
-bootstrap_results_merged |> 
+rsquare_plot <- bootstrap_results_merged |> 
   ggplot(aes(x = r.squared)) +
-  geom_density(fill = "skyblue", alpha = 0.5) +
-  labs(title = "Bootstrap Distribution of r²")
+  geom_density() +
+  labs(
+    x = "R-square hat estimates",
+    y = "Density",
+    title = "Bootstrap Distribution of r² hat")
+
+rsquare_plot
 
 # β¹ ÷ β² distribution
-bootstrap_results_merged |> 
+slope_plot <- bootstrap_results_merged |> 
   ggplot(aes(x = beta_slope)) +
-  geom_density(fill = "salmon", alpha = 0.5) +
-  labs(title = "Bootstrap Distribution of β¹ ÷ β²")
+  geom_density() +
+  labs(
+    x = "β1 hat/ β2 hat estimates",
+    y = "Density",
+    title = "Bootstrap Distribution of β1 hat/ β2 hat")
+
+slope_plot
+```
+
+* The r-square is generally normally distributed after bootstrapping, but the distribution of r-squares are still slightly left skewed.
+* The 95% CI for the proportion of variance in Central Park's tmax that is explained by predictors tmin and prcp is between 0.89 and 0.93.
+
+* The distribution after bootstrapping for β1 hat/ β2 hat is extremely skewed to the left, and the wide distribution is reflected in its large 95% CI = (-5616.45, 4586.92). his occurs because the beta coefficient for prcp is close to 0, while the beta coefficient for tmin is close to 1. Small differences in beta 2 (prcp) lead to large changes in the slope ratio, making the estimate unstable. Additionally, precipitation shows outliers and does not appear to have a meaningful linear association with tmax, further contributing to variability in its estimated coefficient and instability in the ratio.
+
+
+### 95% CI
+```{r}
+bootstrap_results_merged |> 
+  summarize(
+    r2_ci_lower = quantile(r.squared, 0.025),
+    r2_ci_upper = quantile(r.squared, 0.975),
+    beta_ci_lower = quantile(beta_slope, 0.025),
+    beta_ci_upper = quantile(beta_slope, 0.975)
+  )
 ```
 
