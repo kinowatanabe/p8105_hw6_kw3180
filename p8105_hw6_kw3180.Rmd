@@ -27,8 +27,65 @@ scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
 
+# Problem 2
+
+Load the data
+```{r}
+library(modelr)
+library(p8105.datasets)
+data("weather_df") 
+
+weather_df <- weather_df |> 
+  filter(name == "CentralPark_NY")
+```
 
 ```{r}
 
+set.seed(1)
+
+bootstrap_results = 
+  weather_df |> 
+  bootstrap(n = 10) |> 
+  mutate(
+    df = map(strap, as_tibble),
+    fits = map(df, \(df) lm(tmax ~ tmin + prcp, data = df)),
+    coefs = map(fits, broom::tidy),
+    rsquare = map(fits, broom::glance)
+  ) |> 
+  select(.id, coefs, rsquare) 
+
+
+coefs_tibble <- bootstrap_results |> 
+  unnest(coefs) |> 
+  select(.id, term, estimate) |> 
+  pivot_wider(
+    names_from = term, 
+    values_from = estimate) |> 
+  mutate(beta_slope = tmin / prcp)
+
+
+rsquare_tibble <- bootstrap_results |> 
+  unnest(rsquare) |> 
+  select(.id, r.squared, adj.r.squared)
+
+bootstrap_results_merged <- 
+  left_join(coefs_tibble, rsquare_tibble, by = ".id")
+
+
+bootstrap_results_merged
+```
+
+```{r}
+# r² distribution
+bootstrap_results_merged |> 
+  ggplot(aes(x = r.squared)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  labs(title = "Bootstrap Distribution of r²")
+
+# β¹ ÷ β² distribution
+bootstrap_results_merged |> 
+  ggplot(aes(x = beta_slope)) +
+  geom_density(fill = "salmon", alpha = 0.5) +
+  labs(title = "Bootstrap Distribution of β¹ ÷ β²")
 ```
 
