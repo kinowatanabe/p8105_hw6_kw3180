@@ -44,12 +44,20 @@ What do the distribution of variables prcp and tmin look like?
 ```{r}
 weather_df |> 
   ggplot(aes(x = tmin, y = tmax)) + 
-  geom_point() 
+  geom_point() +
+  labs(title = "Scatterplot of tmin vs tmax", 
+       x = "tmin (tenths of degrees C)", 
+       y = "tmax (tenths of degrees C)")
 
 weather_df |> 
   ggplot(aes(x = prcp, y = tmax)) + 
-  geom_point() 
+  geom_point() +
+  labs(title = "Scatterplot of prcp vs tmax", 
+       x = "prcp (tenths of mm)", 
+       y = "tmax (tenths of degrees C)")
 ```
+* Because prcp doesn’t have a linear relationship with tmax, the assumptions for linear regression are violated. We can bootstrap to estimate using empirical distribution without relying on these parametric assumptions.
+
 
 ### Let's do bootstrapping
 
@@ -130,6 +138,8 @@ bootstrap_results_merged |>
     beta_ci_upper = quantile(beta_slope, 0.975)
   )
 ```
+
+* We are 95% confident that the true r^2 value lies between 0.89 and 0.92. We are 95% confident that the true beta1/beta2 value lies between -5616.45 and 4586.92.
 
 # Problem 3
 
@@ -213,7 +223,7 @@ print(na_counts)
 
 I am aiming for a theory-driven hypothesis proposal based on published literature. Based on "The determinants of birth weight," they asserted, "The results show that the sex of the baby, parity, maternal smoking during the pregnancy, maternal height, weight, marital status, and race, and gestation (after allowing for the foregoing characteristics) were all important and significant factors." Thus, I will propose a model with `baby_sex`, `parity`, `mom_smoke_per_day`, `mom_height_in`, `mom_wt_gain_lb`, and `mother_race` as predictors to birthweight.
 
-[The determinants of birth weight](https://pubmed.ncbi.nlm.nih.gov/7114129/)
+[The determinants of birth weight paper](https://pubmed.ncbi.nlm.nih.gov/7114129/)
 
 
 ### Explore data
@@ -277,11 +287,20 @@ bwt_df |>
        y = "Residuals", 
        title = "Residuals vs Fitted Values for Hypothesis Model")
 
-
+bwt_df |> 
+  modelr::add_residuals(hypothesis_fit) |> 
+  ggplot(aes(sample = resid)) +
+  stat_qq() +
+  stat_qq_line(color = "red", linetype = "dashed") +
+  labs(
+    title = "QQ Plot of Residuals for Hypothesis Model",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  )
 ```
 
-* The first plot shows that the residuals for the hypothesized model is generally normally distributed, symmetric, and centered at 0. There is a little skewing on the left-hand size.
-* The "Residuals vs Fitted Values for Hypothesis Model" is the diagnostic for linearity and homoscedasticity. The roughly oval and symmetric shape reflects that there’s more variability in residuals at certain fitted values (often at higher birthweights). The model’s linearity assumption holds, as residuals don’t show a clear trend.
+* The first plot shows that the residuals for the hypothesized model is generally normally distributed, symmetric, and centered at 0. There is noticeable skewing on the left-hand side.
+* The "Residuals vs Fitted Values for Hypothesis Model" is used to assess linearity and homoscedasticity. The roughly oval shape centered around 0 indicates the model is mostly linear, but there is some non-constant variance (heteroskedasticity), with slightly more spread in residuals at lower fitted birthweights..
 
 ### Train/test data for CV
 
@@ -308,6 +327,8 @@ cv_df <- cv_df |>
   )
 ```
 
+### Plot distribution of RMSE
+
 ```{r}
 cv_df |> 
   select(starts_with("rmse")) |> 
@@ -317,7 +338,17 @@ cv_df |>
     values_to = "rmse",
     names_prefix = "rmse_"
   ) |> 
+  mutate(model = factor(model, 
+                        levels = c("fit_interactions", "fit", "hypothesis_fit"))
+  ) |> 
   ggplot(aes(x = model, y = rmse)) + 
-  geom_violin()
+  geom_violin() +
+  labs(x = "Model", 
+       y = "RMSE", 
+       title = "RMSE Across Models")
+
 ```
+
+* The RMSEs suggest that the `fit_interactions` model performs better than both the `fit` and `hypothesis_fit` models. The hypothesized model, which included predictors `baby_sex`, `mom_smoke_per_day`, `mom_height_in`, `mom_wt_gain_lb`, and `mother_race`, had the largest RMSE, likely because it lacks key baby-specific variables. This model emphasizes maternal characteristics and their impact on birthweight, rather than direct measurements of the baby. The focus on the mother, rather than the baby (or dyad, for that matter), makes the model more susceptible to prediction error. In contrast, the `fit` model includes gestational age and baby’s length, enabling it to capture more variance (variables are direct indicators of the baby’s size). The lower RMSE for the `fit_interactions` model indicates that including interactions between baby-specific measures allows the model to account for joint effects on birthweight, improving the model's predictions.
+
 
