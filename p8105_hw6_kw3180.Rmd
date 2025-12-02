@@ -39,6 +39,7 @@ data("weather_df")
 weather_df <- weather_df |> 
   filter(name == "CentralPark_NY")
 ```
+
 What do the distribution of variables prcp and tmin look like?
 
 ```{r}
@@ -56,6 +57,7 @@ weather_df |>
        x = "prcp (tenths of mm)", 
        y = "tmax (tenths of degrees C)")
 ```
+
 * Because prcp doesn’t have a linear relationship with tmax, the assumptions for linear regression are violated. We can bootstrap to estimate using empirical distribution without relying on these parametric assumptions.
 
 
@@ -125,7 +127,7 @@ slope_plot
 * The r-square is generally normally distributed after bootstrapping, but the distribution of r-squares are still slightly left skewed.
 * The 95% CI for the proportion of variance in Central Park's tmax that is explained by predictors tmin and prcp is between 0.89 and 0.93.
 
-* The distribution after bootstrapping for β1 hat/ β2 hat is extremely skewed to the left, and the wide distribution is reflected in its large 95% CI = (-5616.45, 4586.92). his occurs because the beta coefficient for prcp is close to 0, while the beta coefficient for tmin is close to 1. Small differences in beta 2 (prcp) lead to large changes in the slope ratio, making the estimate unstable. Additionally, precipitation shows outliers and does not appear to have a meaningful linear association with tmax, further contributing to variability in its estimated coefficient and instability in the ratio.
+* The distribution after bootstrapping for β1 hat/ β2 hat is extremely skewed to the left, and the wide distribution is reflected in its large 95% CI = (-5616.45, 4586.92). This occurs because the beta coefficient for prcp is close to 0, while the beta coefficient for tmin is close to 1. Small differences in beta 2 (prcp) lead to large changes in the slope ratio, making the estimate unstable. Additionally, precipitation shows outliers and does not appear to have a meaningful linear association with tmax, further contributing to variability in its estimated coefficient and instability in the ratio.
 
 
 ### 95% CI
@@ -136,7 +138,8 @@ bootstrap_results_merged |>
     r2_ci_upper = quantile(r.squared, 0.975),
     beta_ci_lower = quantile(beta_slope, 0.025),
     beta_ci_upper = quantile(beta_slope, 0.975)
-  )
+  ) |> 
+  knitr::kable(digits=4)
 ```
 
 * We are 95% confident that the true r^2 value lies between 0.89 and 0.92. We are 95% confident that the true beta1/beta2 value lies between -5616.45 and 4586.92.
@@ -221,7 +224,9 @@ print(na_counts)
 
 ```
 
-I am aiming for a theory-driven hypothesis proposal based on published literature. Based on "The determinants of birth weight," they asserted, "The results show that the sex of the baby, parity, maternal smoking during the pregnancy, maternal height, weight, marital status, and race, and gestation (after allowing for the foregoing characteristics) were all important and significant factors." Thus, I will propose a model with `baby_sex`, `parity`, `mom_smoke_per_day`, `mom_height_in`, `mom_wt_gain_lb`, and `mother_race` as predictors to birthweight.
+Proposed hypothesis model process: 
+
+I am aiming for a theory-driven hypothesis proposal based on published literature. Based on "The determinants of birth weight," they asserted, "The results show that the sex of the baby, parity, maternal smoking during the pregnancy, maternal height, weight, marital status, and race... were all important and significant factors." Thus, I will propose a model with `baby_sex`, `parity`, `mom_smoke_per_day`, `mom_height_in`, `mom_wt_gain_lb`, and `mother_race` as predictors to birthweight.
 
 [The determinants of birth weight paper](https://pubmed.ncbi.nlm.nih.gov/7114129/)
 
@@ -234,9 +239,13 @@ bwt_df |>
   geom_point()
 ```
 
+Proposed hypothesis model process: 
+
 * There is so little variation in `parity` that it would not be a useful predictor. I will remove this from the model.
 
-Hypothesized model and 2 homework-proposed models
+
+### Hypothesized model and 2 homework-proposed models
+
 ```{r}
 
 hypothesis_fit = lm(bwt_grams ~ baby_sex + mom_smoke_per_day + mom_height_in + mom_wt_gain_lb + mother_race, data = bwt_df)
@@ -287,20 +296,13 @@ bwt_df |>
        y = "Residuals", 
        title = "Residuals vs Fitted Values for Hypothesis Model")
 
-bwt_df |> 
-  modelr::add_residuals(hypothesis_fit) |> 
-  ggplot(aes(sample = resid)) +
-  stat_qq() +
-  stat_qq_line(color = "red", linetype = "dashed") +
-  labs(
-    title = "QQ Plot of Residuals for Hypothesis Model",
-    x = "Theoretical Quantiles",
-    y = "Sample Quantiles"
-  )
-```
 
-* The first plot shows that the residuals for the hypothesized model is generally normally distributed, symmetric, and centered at 0. There is noticeable skewing on the left-hand side.
-* The "Residuals vs Fitted Values for Hypothesis Model" is used to assess linearity and homoscedasticity. The roughly oval shape centered around 0 indicates the model is mostly linear, but there is some non-constant variance (heteroskedasticity), with slightly more spread in residuals at lower fitted birthweights..
+```
+Residual Diagnostics model process: 
+
+* The first plot shows that the residuals for the hypothesized model is generally normally distributed, symmetric, and centered at 0. There is noticeable slight skewing on the left-hand side.
+* The "Residuals vs Fitted Values for Hypothesis Model" shows random scatter around the red line at 0. This suggests that the linearity assumption is not violated.
+
 
 ### Train/test data for CV
 
@@ -321,7 +323,7 @@ cv_df <- cv_df |>
     fit_interactions = map(train, \(df) lm(bwt_grams ~ baby_head_cm * baby_length_cm * baby_sex, data = df))
   )|> 
   mutate(
-    rmse_hypothesis = map2_dbl(hypothesis_fit, test, rmse),
+    rmse_hypothesis_fit = map2_dbl(hypothesis_fit, test, rmse),
     rmse_fit = map2_dbl(fit, test, rmse),
     rmse_fit_interactions = map2_dbl(fit_interactions, test, rmse)
   )
